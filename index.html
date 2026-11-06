@@ -4,36 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NefTalk</title>
-    <link rel="icon" type="image/png" href="Assets/Logos/NefTalk N-Signal.png">
+    <link rel="icon" type="image/png" href="Assets/Logos/NefTalk%20N-Signal.png">
     <link rel="stylesheet" href="style.css">
-    <script type="text/javascript" src="dist/purify.min.js"></script>
-
 </head>
 <body>
     <main class="chat">
         <header class="chat-header">
-            <img class="logo" src="Assets/Logos/NefTalk N-Signal.png" alt="NefTalk logo">
-            <div class="chat-title">
+            <div class="logo">N</div>
+            <div>
                 <h1>NefTalk</h1>
                 <p>Ask me anything</p>
             </div>
-            <span class="status" title="Online" aria-label="Online"></span>
+            <span class="status" title="Online"></span>
         </header>
 
-        <section class="messages" id="respond" aria-label="Conversation">
+        <section class="messages" id="messages" aria-label="Conversation" aria-live="polite">
             <div class="row bot">
                 <span class="label">NefTalk</span>
                 <div class="bubble">Hi there! 👋 I'm NefTalk. What would you like to talk about today?</div>
             </div>
         </section>
 
-        <form class="input-bar" id="messageForm">
-            <input type="text" placeholder="Type your message..." aria-label="Message" id="txtUserInput" autocomplete="off">
-            <button type="submit" aria-label="Send">➤</button>
+        <form class="input-bar" id="chat-form">
+            <input type="text" id="message-input" placeholder="Type your message..." aria-label="Message" autocomplete="off">
+            <button type="submit" id="send-btn" aria-label="Send">➤</button>
         </form>
     </main>
 
-    <script src="js/config.js"></script>
+    <!-- config.js FIRST (it holds your key), then app.js -->
+    <script src="config.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

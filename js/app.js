@@ -1,120 +1,122 @@
-const MODEL = "gemini-3.5-flash-lite";
+// ===== Settings =====
+// If you get a 404 error, copy the exact model name from the code sample in Google AI Studio.
+const MODEL = "gemini-3.6-flash";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-const form = document.getElementById("messageForm");
-const input = document.getElementById("txtUserInput");
-const messages = document.getElementById("respond");
-const sendButton = form.querySelector("button");
-const conversation = [];
-let isSending = false;
+// ===== Elements from index.html =====
+const form = document.getElementById("chat-form");
+const input = document.getElementById("message-input");
+const sendBtn = document.getElementById("send-btn");
+const messages = document.getElementById("messages");
 
-function addMessage(role, text, className = "") {
-    const row = document.createElement("div");
-    row.className = `row ${role}${className ? ` ${className}` : ""}`;
+// The conversation so far, so the bot remembers earlier messages
+const history = [];
 
-    const label = document.createElement("span");
-    label.className = "label";
-    label.textContent = role === "user" ? "You" : "NefTalk";
+// ===== Send when the form is submitted (send button OR Enter key) =====
+form.addEventListener("submit", function (event) {
+    event.preventDefault();               // stop the page from reloading
+    const text = input.value.trim();
+    if (text === "") return;              // ignore empty messages
 
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.textContent = text;
+    sendMessage(text);
+});
 
-    row.append(label, bubble);
-    messages.append(row);
-    messages.scrollTop = messages.scrollHeight;
-    return row;
+async function sendMessage(text) {
+    addMessage("user", text);
+    input.value = "";
+    setBusy(true);
+
+    const typing = showTyping();
+
+    // remember what the user said
+    history.push({ role: "user", parts: [{ text: text }] });
+
+    try {
+        const reply = await askGemini();
+        history.push({ role: "model", parts: [{ text: reply }] });
+        typing.remove();
+        addMessage("bot", reply);
+    } catch (error) {
+        console.error(error);
+        history.pop();                    // forget the failed message
+        typing.remove();
+        addMessage("bot", "Sorry, something went wrong: " + error.message);
+    }
+
+    setBusy(false);
+    input.focus();
 }
 
-function addTypingIndicator() {
-    const row = document.createElement("div");
-    row.className = "row bot";
-    row.setAttribute("aria-label", "NefTalk is typing");
-
-    const label = document.createElement("span");
-    label.className = "label";
-    label.textContent = "NefTalk";
-
-    const typing = document.createElement("div");
-    typing.className = "typing";
-    typing.setAttribute("aria-hidden", "true");
-    typing.append(document.createElement("span"), document.createElement("span"), document.createElement("span"));
-
-    row.append(label, typing);
-    messages.append(row);
-    messages.scrollTop = messages.scrollHeight;
-    return row;
-}
-
-async function getReply() {
+// ===== Call the Gemini API =====
+async function askGemini() {
     const response = await fetch(API_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "X-goog-api-key": API_KEY
+            "x-goog-api-key": GEMINI_API_KEY
         },
-        body: JSON.stringify({ contents: conversation })
+        body: JSON.stringify({
+            systemInstruction: {
+                parts: [{ text: "You are NefTalk, a friendly and helpful chatbot. Keep answers clear and fairly short." }]
+            },
+            contents: history
+        })
     });
 
-    let result;
-    try {
-        result = await response.json();
-    } catch {
-        throw new Error(`The API returned an unreadable response (HTTP ${response.status}).`);
-    }
+    const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(result.error?.message || `The API request failed (HTTP ${response.status}).`);
+        throw new Error(data.error ? data.error.message : "Request failed (" + response.status + ")");
     }
 
-    const reply = result.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text)
-        .filter(Boolean)
-        .join("\n")
-        .trim();
+    // The answer lives here in the JSON
+    const parts = data.candidates && data.candidates[0] && data.candidates[0].content
+        ? data.candidates[0].content.parts
+        : null;
 
-    if (!reply) {
-        throw new Error("NefTalk couldn't generate a reply. Please try a different message.");
+    if (!parts) {
+        throw new Error("The model sent no answer. Try rephrasing.");
     }
 
-    return reply;
+    return parts.map(function (part) { return part.text || ""; }).join("");
 }
 
-form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const text = input.value.trim();
+// ===== Helpers that build the bubbles =====
+function addMessage(who, text) {
+    const row = document.createElement("div");
+    row.className = "row " + who;
 
-    if (!text || isSending) {
-        return;
-    }
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = who === "user" ? "You" : "NefTalk";
 
-    if (API_KEY === "PASTE_YOUR_GEMINI_API_KEY_HERE") {
-        addMessage("bot", "Add your Gemini API key in js/app.js before sending a message.", "error");
-        return;
-    }
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;            // textContent is safe: it can't run injected HTML
 
-    isSending = true;
-    input.disabled = true;
-    sendButton.disabled = true;
-    addMessage("user", text);
-    input.value = "";
+    row.appendChild(label);
+    row.appendChild(bubble);
+    messages.appendChild(row);
+    scrollToBottom();
+}
 
-    const typingRow = addTypingIndicator();
-    conversation.push({ role: "user", parts: [{ text }] });
+function showTyping() {
+    const row = document.createElement("div");
+    row.className = "row bot";
+    row.innerHTML = `
+        <span class="label">NefTalk</span>
+        <div class="typing" aria-label="NefTalk is typing"><span></span><span></span><span></span></div>
+    `;
+    messages.appendChild(row);
+    scrollToBottom();
+    return row;
+}
 
-    try {
-        const reply = await getReply();
-        conversation.push({ role: "model", parts: [{ text: reply }] });
-        addMessage("bot", reply);
-    } catch (error) {
-        conversation.pop();
-        console.error("NefTalk request failed:", error);
-        addMessage("bot", `Sorry, I couldn't get a reply. ${error.message}`, "error");
-    } finally {
-        typingRow.remove();
-        isSending = false;
-        input.disabled = false;
-        sendButton.disabled = false;
-        input.focus();
-    }
-});
+function setBusy(isBusy) {
+    input.disabled = isBusy;
+    sendBtn.disabled = isBusy;
+}
+
+function scrollToBottom() {
+    messages.scrollTop = messages.scrollHeight;
+}
